@@ -109,7 +109,6 @@
             position: relative;
         }
 
-        .stat-label { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
         .stat-value { font-size: 1.2rem; font-weight: 800; color: var(--text); }
         .stat-sub { font-size: 0.65rem; color: var(--accent); margin-top: 0.25rem; }
 
@@ -120,7 +119,33 @@
             border: 1px solid #374151;
             max-height: 200px;
             overflow-y: auto;
+            transition: max-height 0.3s ease-in-out, padding 0.2s, opacity 0.2s;
         }
+
+        .viz-box.collapsed {
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            opacity: 0;
+            overflow: hidden;
+            border-color: transparent;
+        }
+
+        .stat-label { 
+            color: var(--text-dim); 
+            font-size: 0.7rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            margin-bottom: 0.5rem; 
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            user-select: none;
+        }
+
+        .stat-label:hover { color: var(--accent); }
+        .stat-label::after { content: '▼'; font-size: 0.5rem; transition: transform 0.3s; }
+        .stat-label.collapsed::after { transform: rotate(-90deg); }
 
         .dict-entry {
             display: flex;
@@ -464,17 +489,33 @@
             `).join('');
         }
 
-        // --- NEW LISTENERS ---
-        els.loadMoreBtn.addEventListener('click', () => {
+        // --- DICTIONARY CONTROLLERS ---
+        els.loadMoreBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent collapsing the panel when clicking buttons
             appState.displayLimit += 20;
             renderDictionary();
         });
 
-        document.getElementById('show-all-btn').addEventListener('click', () => {
+        document.getElementById('show-all-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent collapsing
             const count = appState.allLearnedEntries.length;
             if (count > 1000 && !confirm(`Displaying ${count} entries might lag your browser. Proceed?`)) return;
             appState.displayLimit = count;
             renderDictionary();
+        });
+
+        // --- COLLAPSIBLE PANELS ---
+        document.querySelectorAll('.stat-label').forEach(label => {
+            label.addEventListener('click', () => {
+                const viz = label.nextElementSibling;
+                const controls = viz.id === 'dictionary-viz' ? document.getElementById('dict-controls') : null;
+                
+                if (viz && viz.classList.contains('viz-box')) {
+                    viz.classList.toggle('collapsed');
+                    label.classList.toggle('collapsed');
+                    if (controls) controls.style.display = viz.classList.contains('collapsed') ? 'none' : 'flex';
+                }
+            });
         });
 
         /**
