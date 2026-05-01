@@ -128,6 +128,30 @@
             min-height: 60px;
             flex-shrink: 0;
             overflow: hidden;
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar-section.collapsed {
+            height: 32px !important;
+            min-height: 32px !important;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-section.collapsed .viz-box,
+        .sidebar-section.collapsed .stat-card,
+        .sidebar-section.collapsed .stat-sub,
+        .sidebar-section.collapsed #dict-controls,
+        .sidebar-section.collapsed .progress-indicator,
+        .sidebar-section.collapsed > div:not(.stat-label):not(.stat-group) {
+            display: none !important;
+        }
+
+        /* If the whole stat-group is inside a collapsed section */
+        .sidebar-section.collapsed .stat-group { display: none !important; }
+
+        /* Hide the resizer after a collapsed section */
+        .sidebar-section.collapsed + .resizer-v {
+            display: none !important;
         }
 
         .stat-card, .viz-box {
@@ -141,18 +165,9 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
-        /* Custom Scrollbar for a premium look */
+        /* Custom Scrollbar */
         .stat-card::-webkit-scrollbar, .viz-box::-webkit-scrollbar { width: 4px; }
         .stat-card::-webkit-scrollbar-thumb, .viz-box::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
-
-        .viz-box.collapsed {
-            max-height: 0 !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-            opacity: 0;
-            overflow: hidden;
-            border-color: transparent;
-        }
 
         .stat-label { 
             color: var(--text-dim); 
@@ -546,13 +561,10 @@
         // --- COLLAPSIBLE PANELS ---
         document.querySelectorAll('.stat-label').forEach(label => {
             label.addEventListener('click', () => {
-                const viz = label.nextElementSibling;
-                const controls = viz.id === 'dictionary-viz' ? document.getElementById('dict-controls') : null;
-                
-                if (viz && viz.classList.contains('viz-box')) {
-                    viz.classList.toggle('collapsed');
+                const section = label.closest('.sidebar-section');
+                if (section) {
+                    section.classList.toggle('collapsed');
                     label.classList.toggle('collapsed');
-                    if (controls) controls.style.display = viz.classList.contains('collapsed') ? 'none' : 'flex';
                 }
             });
         });
