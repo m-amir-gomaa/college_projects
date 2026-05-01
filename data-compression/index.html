@@ -57,10 +57,20 @@
 
         main {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 1fr 6px 400px; /* Added middle column for resizer */
             flex: 1;
             overflow: hidden;
         }
+
+        #main-splitter {
+            background: #1e293b;
+            cursor: col-resize;
+            transition: background 0.2s;
+            z-index: 20;
+        }
+
+        #main-splitter:hover { background: var(--accent); }
+        #main-splitter.dragging { background: var(--accent); width: 8px; }
 
         .editor-container {
             display: flex;
@@ -68,6 +78,7 @@
             padding: 1.5rem;
             gap: 1rem;
             background: #000;
+            min-width: 200px;
         }
 
         textarea {
@@ -117,9 +128,11 @@
             border-radius: 0.75rem;
             padding: 1rem;
             border: 1px solid #374151;
-            max-height: 200px;
+            min-height: 100px;
+            max-height: 800px;
             overflow-y: auto;
-            transition: max-height 0.3s ease-in-out, padding 0.2s, opacity 0.2s;
+            resize: vertical; /* Allows vertical stretching */
+            transition: padding 0.2s, opacity 0.2s;
         }
 
         .viz-box.collapsed {
@@ -216,7 +229,7 @@
         </div>
     </header>
 
-    <main>
+    <main id="main-container">
         <section class="editor-container">
             <div class="controls">
                 <button id="mode-live" class="active">Live Mode</button>
@@ -229,6 +242,8 @@
                 Ready to trace compression...
             </div>
         </section>
+
+        <div id="main-splitter"></div>
 
         <aside class="sidebar">
             <div class="stat-group">
@@ -597,6 +612,40 @@
         // Initial Data for the first load
         els.input.value = `<!DOCTYPE html>\n<html>\n  <head>\n    <title>Pro Demo</title>\n  </head>\n  <body class="main-layout">\n    <div class="content-box">\n      <h1>Web Compression v2.0</h1>\n      <div class="content-box">The repetitive class="main-layout" is easily indexed.</div>\n    </div>\n  </body>\n</html>`;
         updateUI();
+        // --- HORIZONTAL RESIZER LOGIC ---
+        const splitter = document.getElementById('main-splitter');
+        const container = document.getElementById('main-container');
+        let isDragging = false;
+
+        splitter.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            splitter.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            // Disable text selection while dragging
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const containerWidth = container.offsetWidth;
+            const mouseX = e.clientX;
+            
+            // Calculate new percentage for the first column (Editor)
+            // We keep the splitter at 6px and adjust the sidebar width
+            const sidebarWidth = containerWidth - mouseX;
+            if (sidebarWidth > 200 && sidebarWidth < 800) {
+                container.style.gridTemplateColumns = `1fr 6px ${sidebarWidth}px`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                splitter.classList.remove('dragging');
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+            }
+        });
     </script>
 </body>
 </html>
