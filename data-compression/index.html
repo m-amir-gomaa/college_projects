@@ -244,19 +244,25 @@
     </main>
 
     <script>
+        /**
+         * GLOBAL CONSTANTS
+         * These are the "Common Tags" we pre-load to make the compressor smarter.
+         */
         const HTML_TOKENS = [
             "<div>", "</div>", "<span>", "</span>", "<p>", "</p>", "class=\"", "id=\"", "style=\"", "href=\"", 
             "src=\"", "<html>", "</html>", "<head>", "</head>", "<body>", "</body>", "<li>", "</li>", "<ul>", 
             "</ul>", "<table>", "</table>", "<tr>", "</tr>", "<td>", "</td>", "<img>", "<a>", "</a>", "DOCTYPE html", "UTF-8"
         ];
 
+        // This object stores the current state of the application
         let appState = {
-            mode: 'live',
-            stepIndex: 0,
-            currLZWString: "",
-            lzwDict: {},
+            mode: 'live',       // 'live' means it updates as you type
+            stepIndex: 0,       // Used in 'Debugger' mode to track the character position
+            currLZWString: "",   // The current pattern the algorithm is building
+            lzwDict: {},         // The active dictionary mapping strings to numbers
         };
 
+        // Cache the HTML elements so we don't have to search for them every time
         const els = {
             input: document.getElementById('input'),
             entropy: document.getElementById('entropy-val'),
@@ -276,91 +282,170 @@
             stepInfo: document.getElementById('step-display')
         };
 
+        /**
+         * SHANNON ENTROPY CALCULATION
+         * This function calculates the "Complexity" or "Uncertainty" of the data.
+         * Math: H(X) = -Sum( P(i) * log2( P(i) ) )
+         */
         function calculateEntropy(str) {
+            // If the input is empty, entropy is zero.
             if (!str) return 0;
+            
             const freq = {};
+            // 1. We count how many times every character appears (Frequency)
             for (let char of str) freq[char] = (freq[char] || 0) + 1;
+            
             let entropy = 0;
             for (let char in freq) {
+                // 2. We calculate the Probability (P) of each character
                 const p = freq[char] / str.length;
+                
+                // 3. We apply the Shannon formula to get the bit-value of the character.
+                // Rare characters (low P) give higher entropy (more "surprise").
                 entropy -= p * Math.log2(p);
             }
             return entropy;
         }
 
+        /**
+         * DICTIONARY INITIALIZATION
+         * This creates the starting "Book of Patterns".
+         */
         function getInitialDict(useStatic) {
             let dict = {};
+            // Start with standard ASCII (0 to 255)
             for (let i = 0; i < 256; i++) dict[String.fromCharCode(i)] = i;
+            
+            // If the user checked the "Static" box, add our HTML tags too
             if (useStatic) {
                 HTML_TOKENS.forEach((t, i) => { dict[t] = 256 + i; });
             }
             return dict;
         }
 
+        /**
+         * LZW (LEMPEL-ZIV-WELCH) ENCODING
+         * This is the heart of the compressor. It turns patterns into numbers.
+         */
         function lzwEncode(data, useStatic) {
+            // Start with the basic dictionary (ASCII + optional HTML tags)
             let dict = getInitialDict(useStatic);
             let dictSize = Object.keys(dict).length;
+            
             let curr = "";
             let result = [];
             let newEntries = [];
 
+            // We loop through every character in the source text.
             for (let char of data) {
+                // We combine the 'current' pattern with the 'next' character.
                 let combined = curr + char;
+                
+                // If we HAVE seen this combination before...
                 if (dict.hasOwnProperty(combined)) {
+                    // ...don't output anything. Keep building a longer pattern!
                     curr = combined;
                 } else {
+                    // Mismatch! We have NOT seen 'combined' before.
+                    // So we output the index of the part we DO know ('curr').
                     result.push(dict[curr]);
+                    
+                    // Now we "Learn": Add the new 'combined' pattern to the dictionary.
                     dict[combined] = dictSize++;
+                    
+                    // (UI code: save the new pattern so we can show it in the list)
                     if (newEntries.length < 20) newEntries.push({ key: combined, val: dictSize - 1 });
+                    
+                    // Reset 'curr' to start a new search beginning with the character that failed.
                     curr = char;
                 }
             }
+            // Output the final pattern that was being built.
             if (curr !== "") result.push(dict[curr]);
             return { codes: result, entries: newEntries, finalDictSize: dictSize };
         }
 
+        /**
+         * THE HYBRID PASS (Statistical Optimization)
+         * This simulates what happens if we use Huffman coding on our LZW numbers.
+         */
         function calculateHybridBitCost(indices) {
             if (!indices.length) return { totalBits: 0, freqMap: {} };
+            
             const freq = {};
+            // 1. Count how often each LZW Index appears
             indices.forEach(idx => freq[idx] = (freq[idx] || 0) + 1);
+            
             let totalBits = 0;
             const numIndices = indices.length;
+            
             for (let idx in freq) {
+                // 2. Calculate the optimal bit-length for this index
+                // Rarer indices get more bits; frequent ones get fewer.
                 const p = freq[idx] / numIndices;
                 const bitLength = -Math.log2(p);
+                
+                // 3. Add to the total bit count
                 totalBits += freq[idx] * bitLength;
             }
             return { totalBits, freqMap: freq };
         }
 
+        /**
+         * THE UI UPDATE LOOP
+         * This runs the whole pipeline and updates the screen.
+         */
         function updateUI() {
             const val = els.input.value;
             const useStatic = els.toggleStatic.checked;
+            
             if (!val) return;
+
+            // 1. Calculate Entropy (The Baseline)
             const entropy = calculateEntropy(val);
             els.entropy.innerText = entropy.toFixed(3);
+            
+            // 2. Calculate Original Size (1 char = 1 byte)
             const origBytes = new Blob([val]).size;
             els.sizeOrig.innerText = `${origBytes} B`;
+
+            // 3. Run LZW Encoding
             const { codes, entries } = lzwEncode(val, useStatic);
+            
+            // 4. Calculate LZW Stage Size (Assuming 12-bit fixed width indices)
             const lzwBytes = Math.ceil(codes.length * 1.5);
             els.sizeLzw.innerText = `${lzwBytes} B`;
+
+            // 5. Run the Hybrid Huffman pass
             const { totalBits, freqMap } = calculateHybridBitCost(codes);
+            
+            // 6. Final Size (The most compressed version)
             const hybridBytes = Math.ceil(totalBits / 8);
             els.sizeHybrid.innerText = `${hybridBytes} B`;
+
+            // 7. Update the Savings Badge
             const finalBitsPerSym = totalBits / val.length;
             els.bitsPerSym.innerText = finalBitsPerSym.toFixed(3);
+
             const savings = ((1 - (hybridBytes / origBytes)) * 100).toFixed(1);
             els.savings.innerText = `SAVINGS: ${savings}%`;
             els.sizeProgress.style.width = `${Math.min(100, (hybridBytes / origBytes) * 100)}%`;
+
+            // 8. Visual stuff (Dictionary table and Frequency chart)
             els.dictViz.innerHTML = entries.map(e => `
                 <div class="dict-entry"><span class="dict-key">${e.key.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span> <span class="dict-val">#${e.val}</span></div>
             `).join('');
+
             const sortedFreq = Object.entries(freqMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
             els.freqViz.innerHTML = sortedFreq.map(([idx, count]) => `
                 <div class="dict-entry"><span class="dict-key">Code #${idx}</span> <span class="dict-val">${count} hits</span></div>
             `).join('');
         }
 
+        /**
+         * DEBUGGER LOGIC
+         * This allows tracing the LZW algorithm step-by-step.
+         */
         function startDebugger() {
             appState.stepIndex = 0;
             appState.currLZWString = "";
@@ -378,8 +463,10 @@
                 els.stepInfo.innerText = "Compression Complete.";
                 return;
             }
+
             const char = text[appState.stepIndex];
             const combined = appState.currLZWString + char;
+            
             if (appState.lzwDict.hasOwnProperty(combined)) {
                 appState.currLZWString = combined;
                 els.stepInfo.innerHTML = `Matching pattern: <strong style="color:var(--accent)">"${combined.replace(/</g,'&lt;')}"</strong>. Looking for more...`;
@@ -387,14 +474,18 @@
                 const outCode = appState.lzwDict[appState.currLZWString];
                 const newIdx = Object.keys(appState.lzwDict).length;
                 appState.lzwDict[combined] = newIdx;
+                
                 els.stepInfo.innerHTML = `
                     Mismatch! Outputting Index <strong style="color:var(--success)">#${outCode}</strong> for "${appState.currLZWString.replace(/</g,'&lt;')}".<br>
                     Adding <strong style="color:var(--warning)">"${combined.replace(/</g,'&lt;')}"</strong> to Dictionary at Slot #${newIdx}.
                 `;
                 appState.currLZWString = char;
             }
+            
             appState.stepIndex++;
         }
+
+        // --- EVENT LISTENERS ---
 
         let debounceTimer;
         els.input.addEventListener('input', () => {
@@ -405,7 +496,9 @@
                 updateUI();
             }, 150); 
         });
+
         els.toggleStatic.addEventListener('change', updateUI);
+
         els.modeLive.addEventListener('click', () => {
             appState.mode = 'live';
             els.modeLive.classList.add('active');
@@ -415,13 +508,17 @@
             els.stepInfo.style.display = 'none';
             updateUI();
         });
+
         els.modeStep.addEventListener('click', () => {
             els.modeStep.classList.add('active');
             els.modeLive.classList.remove('active');
             startDebugger();
         });
+
         els.stepBtn.addEventListener('click', runNextStep);
         els.resetBtn.addEventListener('click', startDebugger);
+
+        // Initial Data for the first load
         els.input.value = `<!DOCTYPE html>\n<html>\n  <head>\n    <title>Pro Demo</title>\n  </head>\n  <body class="main-layout">\n    <div class="content-box">\n      <h1>Web Compression v2.0</h1>\n      <div class="content-box">The repetitive class="main-layout" is easily indexed.</div>\n    </div>\n  </body>\n</html>`;
         updateUI();
     </script>
