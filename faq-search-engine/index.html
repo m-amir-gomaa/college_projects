@@ -171,8 +171,9 @@
 
     <script>
         /**
-         * THE FAQ DATASET
-         * This is our "Knowledge Base". In a real system, this would come from a database.
+         * THE FAQ DATASET (The Knowledge Base)
+         * This represents our "Corpus". In Information Retrieval, a corpus is the 
+         * set of all documents we want to search through.
          */
         const FAQ_DATA = [
             { id: 1, q: "What is the difference between CS, IT, and SE?", a: "Computer Science focuses on algorithms and theory. Software Engineering centers on large-scale development. Information Technology is about practical deployment in business." },
@@ -186,134 +187,160 @@
         ];
 
         /**
-         * STOP WORDS
-         * These are common words that carry very little information.
-         * We filter them out so the engine focuses on "meaningful" keywords.
+         * STOP WORDS (Noise Filtering)
+         * These words have very high "Document Frequency" but zero "Information Gain".
+         * Filtering them makes the search "Semantic" by focusing only on keywords.
          */
-        const STOP_WORDS = new Set(["what", "is", "the", "and", "a", "do", "i", "to", "in", "how", "only", "about", "are", "there", "with", "can", "get"]);
+        const STOP_WORDS = new Set(["what", "is", "the", "and", "a", "do", "i", "to", "in", "how", "only", "about", "are", "there", "with", "can", "get", "of", "it"]);
 
         /**
-         * TOKENIZER
-         * This function turns a sentence into a clean list of words (tokens).
+         * TOKENIZER (Text Normalization)
+         * This turns raw strings into a "Bag of Words".
          */
         function tokenize(text) {
             return text.toLowerCase()
-                .replace(/[^\w\s]/g, '') // Remove punctuation
-                .split(/\s+/)           // Split by spaces
-                .filter(word => word && !STOP_WORDS.has(word)); // Remove empty strings and stop words
+                .replace(/[^\w\s]/g, '') // Step 1: Strip punctuation (removes noise)
+                .split(/\s+/)           // Step 2: Split into atoms (tokens)
+                .filter(word => word && !STOP_WORDS.has(word)); // Step 3: Remove empty/stop words
         }
 
-        // Internal State of the IR Engine
-        let invertedIndex = {}; // Maps: "Word" -> [List of Doc IDs]
-        let idfScores = {};     // Maps: "Word" -> Its rarity score
-        let docVectors = {};    // Maps: "Doc ID" -> {Word: Frequency}
+        // --- GLOBAL ENGINE STATE ---
+        let invertedIndex = {}; // Maps "Term" -> [Doc IDs] (Used for fast lookups)
+        let idfScores = {};     // Maps "Term" -> Weight (The rarity of the word)
+        let docVectors = {};    // Maps "Doc ID" -> {Term: Count} (The local TF data)
 
         /**
-         * INDEXING ENGINE
-         * This builds the "Search Brain" by scanning all FAQ items.
+         * INDEXING ENGINE (The Brain Builder)
+         * This function prepares the data before the user even types a single letter.
          */
         function buildIndex() {
             const numDocs = FAQ_DATA.length;
-            const termDocCounts = {}; // How many documents contain each word?
+            const termDocCounts = {}; // Track document frequency (df) for every word
 
             FAQ_DATA.forEach(doc => {
-                // 1. Clean the text
+                // Combine Question and Answer for a richer search context
                 const terms = tokenize(doc.q + " " + doc.a);
-                const termFreq = {};
+                const termFreq = {}; // Local TF for this specific document
                 
                 terms.forEach(term => {
-                    // 2. Calculate Term Frequency (TF) for this document
+                    // Count how many times word appears in this doc (Term Frequency)
                     termFreq[term] = (termFreq[term] || 0) + 1;
                     
-                    // 3. Update the Inverted Index (The map of words to docs)
+                    // Add this Doc ID to the "Inverted Index" for this word
                     if (!invertedIndex[term]) invertedIndex[term] = new Set();
                     invertedIndex[term].add(doc.id);
                 });
 
+                // Store the local counts for this document
                 docVectors[doc.id] = termFreq;
-                // 4. Update the global count of how many docs have this word (for IDF)
+
+                // Mark that this word exists in this document (used later for IDF)
                 Object.keys(termFreq).forEach(t => termDocCounts[t] = (termDocCounts[t] || 0) + 1);
             });
 
-            // 5. Calculate IDF (Inverse Document Frequency)
-            // Rare words get a high score; common words get a low score.
+            /**
+             * IDF CALCULATION (Term Weighting)
+             * Math: log10(TotalDocuments / DocumentsWithThisWord)
+             * Logic: If a word appears in EVERY document, its IDF is log(1) = 0 (useless).
+             * If it appears in only 1 doc, its IDF is high (very unique/valuable).
+             */
             for (let term in termDocCounts) {
                 idfScores[term] = Math.log10(numDocs / termDocCounts[term]);
             }
 
-            updateViz(); // Update the sidebar tables
+            updateViz(); // Update the sidebar visualization
         }
 
         /**
-         * COSINE SIMILARITY (The "Ranking" Math)
-         * This calculates the 'angle' between the search query and the FAQ document.
+         * COSINE SIMILARITY (The Scoring Math)
+         * This treats the query and the document as vectors in N-dimensional space.
+         * We measure the cosine of the angle between them. 1.0 = same angle (perfect match).
          */
         function calculateSimilarity(queryTerms, docId) {
-            const docTF = docVectors[docId];
-            let dotProduct = 0;
-            let queryMagnitude = 0;
-            let docMagnitude = 0;
+            const docTF = docVectors[docId]; // Get word counts for this document
+            let dotProduct = 0;   // Accumulator for top of the equation
+            let queryMagSq = 0;   // Accumulator for query vector length
+            let docMagSq = 0;     // Accumulator for document vector length
 
-            // 1. Calculate Query Vector weights
-            const queryWeights = {};
-            queryTerms.forEach(t => { queryWeights[t] = (queryWeights[t] || 0) + 1; });
+            // 1. Build the Query Vector (TF weights)
+            const queryFreq = {};
+            queryTerms.forEach(t => { queryFreq[t] = (queryFreq[t] || 0) + 1; });
 
-            // 2. Perform the Dot Product and calculate Vector Magnitudes
-            for (let term in queryWeights) {
-                const qWeight = queryWeights[term] * (idfScores[term] || 0);
+            /**
+             * 2. CALCULATE TF-IDF INTERSECTION
+             * We multiply (QueryWeight * DocWeight) for every word they share.
+             */
+            for (let term in queryFreq) {
+                // Weight = (Term Frequency) * (Inverse Document Frequency)
+                const qWeight = queryFreq[term] * (idfScores[term] || 0);
                 const dWeight = (docTF[term] || 0) * (idfScores[term] || 0);
                 
+                // Add to Dot Product (The Numerator)
                 dotProduct += qWeight * dWeight;
-                queryMagnitude += qWeight * qWeight;
+                
+                // Add to Query Magnitude (The Denominator Part A)
+                queryMagSq += qWeight * qWeight;
             }
 
+            // 3. Calculate Document Magnitude (The Denominator Part B)
             for (let term in docTF) {
                 const dWeight = docTF[term] * (idfScores[term] || 0);
-                docMagnitude += dWeight * dWeight;
+                docMagSq += dWeight * dWeight;
             }
 
-            // 3. Final Similarity = DotProduct / (||Query|| * ||Doc||)
+            /**
+             * 4. FINAL COSINE CALCULATION
+             * Score = DotProduct / (||Query|| * ||Doc||)
+             */
+            const queryMagnitude = Math.sqrt(queryMagSq);
+            const docMagnitude = Math.sqrt(docMagSq);
+
             if (queryMagnitude === 0 || docMagnitude === 0) return 0;
-            return dotProduct / (Math.sqrt(queryMagnitude) * Math.sqrt(docMagnitude));
+            return dotProduct / (queryMagnitude * docMagnitude);
         }
 
         /**
-         * UI RENDERERS
-         * These functions update the HTML elements on the screen.
+         * UI CONTROLLERS
+         * Linking the IR math to the HTML elements.
          */
         function updateViz() {
             const idxBody = document.querySelector('#index-viz tbody');
             const idfBody = document.querySelector('#idf-viz tbody');
 
-            // We only show a fragment of the index to keep the UI clean
+            // Display a fragment of the internal engine state
             const terms = Object.keys(invertedIndex).slice(0, 10);
-            idxBody.innerHTML = terms.map(t => `<tr><td>${t}</td><td>${Array.from(invertedIndex[t]).join(',')}</td></tr>`).join('');
+            idxBody.innerHTML = terms.map(t => `<tr><td>${t}</td><td>[${Array.from(invertedIndex[t]).join(',')}]</td></tr>`).join('');
             idfBody.innerHTML = terms.map(t => `<tr><td>${t}</td><td>${idfScores[t].toFixed(3)}</td></tr>`).join('');
         }
 
         const queryInput = document.getElementById('query');
         const resultsList = document.getElementById('results');
 
-        // Handle user typing
+        // REAL-TIME SEARCH (Triggered on every keystroke)
         queryInput.addEventListener('input', () => {
             const query = queryInput.value;
-            const terms = tokenize(query);
+            const terms = tokenize(query); // Turn user input into vector components
             
             if (terms.length === 0) {
-                // If query is empty, show all FAQs in their default order
                 resultsList.innerHTML = FAQ_DATA.map(renderCard).join('');
                 return;
             }
 
-            // Rank documents by similarity score
+            // Rank every document by its Cosine Similarity score
             const scored = FAQ_DATA.map(doc => ({
                 ...doc,
                 score: calculateSimilarity(terms, doc.id)
-            })).filter(d => d.score > 0).sort((a,b) => b.score - a.score);
+            }))
+            .filter(d => d.score > 0)     // Filter out non-matching results
+            .sort((a,b) => b.score - a.score); // Sort by highest similarity first
 
             resultsList.innerHTML = scored.map(renderCard).join('');
         });
 
+        /**
+         * TEMPLATE RENDERER
+         * Creates a clean card for every FAQ item.
+         */
         function renderCard(doc) {
             return `
                 <div class="faq-card">
@@ -324,7 +351,7 @@
             `;
         }
 
-        // START THE ENGINE
+        // INITIALIZE: Build the Inverted Index and IDF weights on page load
         buildIndex();
         resultsList.innerHTML = FAQ_DATA.map(renderCard).join('');
     </script>
