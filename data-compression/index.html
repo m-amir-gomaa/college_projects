@@ -98,22 +98,32 @@
 
         .sidebar {
             background: var(--surface);
-            padding: 1rem;
-            overflow-y: hidden; /* Changed to hidden to allow resizers to work properly */
+            padding: 1.5rem;
+            overflow-y: auto; /* Allow the whole sidebar to scroll if screen is small */
             border-left: 1px solid #2d3748;
             display: flex;
             flex-direction: column;
-            gap: 0; /* Gap handled by resizers */
         }
 
         .resizer-v {
-            height: 6px;
+            height: 4px;
             background: #1e293b;
             cursor: row-resize;
-            margin: 4px 0;
-            border-radius: 3px;
+            margin: 12px 0;
+            border-radius: 2px;
             flex-shrink: 0;
+            position: relative;
             transition: background 0.2s;
+        }
+
+        .resizer-v::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px; height: 2px;
+            background: #334155;
+            border-radius: 1px;
         }
 
         .resizer-v:hover { background: var(--accent); }
@@ -122,14 +132,17 @@
         .sidebar-section {
             display: flex;
             flex-direction: column;
-            min-height: 50px;
-            overflow: hidden;
+            min-height: 60px;
+            flex-shrink: 0; /* Prevent automatic squishing */
         }
 
         .stat-card, .viz-box {
             flex: 1;
             overflow-y: auto;
             border: 1px solid #374151;
+            border-radius: 0.75rem;
+            background: var(--surface-light);
+            padding: 1rem;
         }
 
         .viz-box.collapsed {
@@ -243,7 +256,7 @@
         <div id="main-splitter"></div>
 
         <aside class="sidebar">
-            <div class="sidebar-section" style="height: 120px;">
+            <div class="sidebar-section" style="height: 140px;">
                 <div class="stat-group">
                     <div class="stat-card">
                         <div class="stat-label" style="cursor: default;">Entropy (H)</div>
@@ -260,10 +273,10 @@
 
             <div class="resizer-v"></div>
 
-            <div class="sidebar-section" style="height: 150px;">
+            <div class="sidebar-section" style="height: 160px;">
                 <div class="stat-card">
                     <div class="stat-label" style="cursor: default;">Pipeline Metrics (Bytes)</div>
-                    <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                    <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.8rem;">
                         <div style="display: flex; justify-content: space-between;">
                             <span>Original:</span> <span id="size-orig">0</span>
                         </div>
@@ -274,26 +287,26 @@
                             <span>Hybrid (LZW+Huff):</span> <span id="size-hybrid">0</span>
                         </div>
                     </div>
-                    <div class="progress-indicator"><div id="size-progress" class="progress-fill"></div></div>
+                    <div class="progress-indicator" style="margin-top: 1rem;"><div id="size-progress" class="progress-fill"></div></div>
                 </div>
             </div>
 
             <div class="resizer-v"></div>
 
-            <div class="sidebar-section" style="flex: 1;">
-                <div class="stat-label">Active Dictionary</div>
-                <div id="dictionary-viz" class="viz-box"></div>
-                <div id="dict-controls" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                    <button id="load-more-btn" style="flex:1; font-size: 0.65rem;">Load Next 20</button>
-                    <button id="show-all-btn" style="font-size: 0.65rem;">All</button>
+            <div class="sidebar-section" style="height: 250px;">
+                <div class="stat-label" style="margin-bottom: 0.8rem;">Active Dictionary</div>
+                <div id="dictionary-viz" class="viz-box" style="background: #000;"></div>
+                <div id="dict-controls" style="display: flex; gap: 0.5rem; margin-top: 0.8rem;">
+                    <button id="load-more-btn" style="flex:1; font-size: 0.7rem; padding: 0.4rem;">Load Next 20</button>
+                    <button id="show-all-btn" style="font-size: 0.7rem; padding: 0.4rem;">All</button>
                 </div>
             </div>
 
             <div class="resizer-v"></div>
 
-            <div class="sidebar-section" style="height: 150px;">
-                <div class="stat-label">Symbol Frequencies (Huffman Pass)</div>
-                <div id="freq-viz" class="viz-box"></div>
+            <div class="sidebar-section" style="height: 200px;">
+                <div class="stat-label" style="margin-bottom: 0.8rem;">Symbol Frequencies</div>
+                <div id="freq-viz" class="viz-box" style="background: #000;"></div>
             </div>
         </aside>
     </main>
