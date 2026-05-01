@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Web Page Text Compressor | PRO Pipeline</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --surface: #161e2e;
+            --surface-light: #1f2937;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.2);
+            --text: #f9fafb;
+            --text-dim: #9ca3af;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 1rem 2rem;
+            background: var(--surface);
+            border-bottom: 1px solid #2d3748;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        h1 { margin: 0; font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; color: var(--accent); }
+
+        .pipeline-status {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            cursor: pointer;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .editor-container {
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            gap: 1rem;
+            background: #000;
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: 1px solid #2d3748;
+            color: var(--success);
+            font-family: 'Fira Code', 'Courier New', monospace;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            resize: none;
+            outline: none;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .sidebar {
+            background: var(--surface);
+            padding: 1.5rem;
+            overflow-y: auto;
+            border-left: 1px solid #2d3748;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .stat-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--surface-light);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid #374151;
+            position: relative;
+        }
+
+        .stat-label { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.2rem; font-weight: 800; color: var(--text); }
+        .stat-sub { font-size: 0.65rem; color: var(--accent); margin-top: 0.25rem; }
+
+        .viz-box {
+            background: #000;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            border: 1px solid #374151;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .dict-entry {
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 0.75rem;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #1f2937;
+        }
+
+        .dict-key { color: var(--accent); }
+        .dict-val { color: var(--text-dim); }
+
+        .progress-indicator {
+            height: 4px;
+            background: #1f2937;
+            border-radius: 2px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        button {
+            background: var(--surface-light);
+            border: 1px solid #374151;
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        button:hover { background: var(--accent); color: var(--bg); }
+        button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+        .step-info {
+            background: var(--accent-glow);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            border-left: 3px solid var(--accent);
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>⚡ WEB PAGE TEXT COMPRESSOR <span style="color: var(--text-dim); font-weight: 400; font-size: 0.7rem; margin-left: 10px;">HYBRID PIPELINE v2.0</span></h1>
+        <div class="pipeline-status">
+            <label class="toggle-container">
+                <input type="checkbox" id="static-dict-toggle" checked>
+                <span>Pre-loaded HTML Dictionary</span>
+            </label>
+            <div id="final-savings" class="stat-value" style="color: var(--success); font-size: 1rem;">SAVINGS: 0%</div>
+        </div>
+    </header>
+
+    <main>
+        <section class="editor-container">
+            <div class="controls">
+                <button id="mode-live" class="active">Live Mode</button>
+                <button id="mode-step">Debugger Mode</button>
+                <button id="step-btn" style="display:none;">Next Step (N)</button>
+                <button id="reset-btn" style="display:none;">Reset</button>
+            </div>
+            <textarea id="input" spellcheck="false"></textarea>
+            <div id="step-display" class="step-info" style="display:none;">
+                Ready to trace compression...
+            </div>
+        </section>
+
+        <aside class="sidebar">
+            <div class="stat-group">
+                <div class="stat-card">
+                    <div class="stat-label">Entropy (H)</div>
+                    <div id="entropy-val" class="stat-value">0.00</div>
+                    <div class="stat-sub">bits / symbol</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Hybrid Efficiency</div>
+                    <div id="bits-per-sym" class="stat-value">0.00</div>
+                    <div class="stat-sub">final bits / sym</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Pipeline Metrics (Bytes)</div>
+                <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Original:</span> <span id="size-orig">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>LZW Stage:</span> <span id="size-lzw">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: var(--success); font-weight: bold;">
+                        <span>Hybrid (LZW+Huff):</span> <span id="size-hybrid">0</span>
+                    </div>
+                </div>
+                <div class="progress-indicator"><div id="size-progress" class="progress-fill"></div></div>
+            </div>
+
+            <div class="stat-label">Active Dictionary</div>
+            <div id="dictionary-viz" class="viz-box"></div>
+
+            <div class="stat-label">Symbol Frequencies (Huffman Pass)</div>
+            <div id="freq-viz" class="viz-box"></div>
+        </aside>
+    </main>
+
+    <script>
+        const HTML_TOKENS = [
+            "<div>", "</div>", "<span>", "</span>", "<p>", "</p>", "class=\"", "id=\"", "style=\"", "href=\"", 
+            "src=\"", "<html>", "</html>", "<head>", "</head>", "<body>", "</body>", "<li>", "</li>", "<ul>", 
+            "</ul>", "<table>", "</table>", "<tr>", "</tr>", "<td>", "</td>", "<img>", "<a>", "</a>", "DOCTYPE html", "UTF-8"
+        ];
+
+        let appState = {
+            mode: 'live',
+            stepIndex: 0,
+            currLZWString: "",
+            lzwDict: {},
+        };
+
+        const els = {
+            input: document.getElementById('input'),
+            entropy: document.getElementById('entropy-val'),
+            bitsPerSym: document.getElementById('bits-per-sym'),
+            sizeOrig: document.getElementById('size-orig'),
+            sizeLzw: document.getElementById('size-lzw'),
+            sizeHybrid: document.getElementById('size-hybrid'),
+            sizeProgress: document.getElementById('size-progress'),
+            savings: document.getElementById('final-savings'),
+            dictViz: document.getElementById('dictionary-viz'),
+            freqViz: document.getElementById('freq-viz'),
+            toggleStatic: document.getElementById('static-dict-toggle'),
+            modeLive: document.getElementById('mode-live'),
+            modeStep: document.getElementById('mode-step'),
+            stepBtn: document.getElementById('step-btn'),
+            resetBtn: document.getElementById('reset-btn'),
+            stepInfo: document.getElementById('step-display')
+        };
+
+        function calculateEntropy(str) {
+            if (!str) return 0;
+            const freq = {};
+            for (let char of str) freq[char] = (freq[char] || 0) + 1;
+            let entropy = 0;
+            for (let char in freq) {
+                const p = freq[char] / str.length;
+                entropy -= p * Math.log2(p);
+            }
+            return entropy;
+        }
+
+        function getInitialDict(useStatic) {
+            let dict = {};
+            for (let i = 0; i < 256; i++) dict[String.fromCharCode(i)] = i;
+            if (useStatic) {
+                HTML_TOKENS.forEach((t, i) => { dict[t] = 256 + i; });
+            }
+            return dict;
+        }
+
+        function lzwEncode(data, useStatic) {
+            let dict = getInitialDict(useStatic);
+            let dictSize = Object.keys(dict).length;
+            let curr = "";
+            let result = [];
+            let newEntries = [];
+
+            for (let char of data) {
+                let combined = curr + char;
+                if (dict.hasOwnProperty(combined)) {
+                    curr = combined;
+                } else {
+                    result.push(dict[curr]);
+                    dict[combined] = dictSize++;
+                    if (newEntries.length < 20) newEntries.push({ key: combined, val: dictSize - 1 });
+                    curr = char;
+                }
+            }
+            if (curr !== "") result.push(dict[curr]);
+            return { codes: result, entries: newEntries, finalDictSize: dictSize };
+        }
+
+        function calculateHybridBitCost(indices) {
+            if (!indices.length) return { totalBits: 0, freqMap: {} };
+            const freq = {};
+            indices.forEach(idx => freq[idx] = (freq[idx] || 0) + 1);
+            let totalBits = 0;
+            const numIndices = indices.length;
+            for (let idx in freq) {
+                const p = freq[idx] / numIndices;
+                const bitLength = -Math.log2(p);
+                totalBits += freq[idx] * bitLength;
+            }
+            return { totalBits, freqMap: freq };
+        }
+
+        function updateUI() {
+            const val = els.input.value;
+            const useStatic = els.toggleStatic.checked;
+            if (!val) return;
+            const entropy = calculateEntropy(val);
+            els.entropy.innerText = entropy.toFixed(3);
+            const origBytes = new Blob([val]).size;
+            els.sizeOrig.innerText = `${origBytes} B`;
+            const { codes, entries } = lzwEncode(val, useStatic);
+            const lzwBytes = Math.ceil(codes.length * 1.5);
+            els.sizeLzw.innerText = `${lzwBytes} B`;
+            const { totalBits, freqMap } = calculateHybridBitCost(codes);
+            const hybridBytes = Math.ceil(totalBits / 8);
+            els.sizeHybrid.innerText = `${hybridBytes} B`;
+            const finalBitsPerSym = totalBits / val.length;
+            els.bitsPerSym.innerText = finalBitsPerSym.toFixed(3);
+            const savings = ((1 - (hybridBytes / origBytes)) * 100).toFixed(1);
+            els.savings.innerText = `SAVINGS: ${savings}%`;
+            els.sizeProgress.style.width = `${Math.min(100, (hybridBytes / origBytes) * 100)}%`;
+            els.dictViz.innerHTML = entries.map(e => `
+                <div class="dict-entry"><span class="dict-key">${e.key.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span> <span class="dict-val">#${e.val}</span></div>
+            `).join('');
+            const sortedFreq = Object.entries(freqMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
+            els.freqViz.innerHTML = sortedFreq.map(([idx, count]) => `
+                <div class="dict-entry"><span class="dict-key">Code #${idx}</span> <span class="dict-val">${count} hits</span></div>
+            `).join('');
+        }
+
+        function startDebugger() {
+            appState.stepIndex = 0;
+            appState.currLZWString = "";
+            appState.lzwDict = getInitialDict(els.toggleStatic.checked);
+            appState.mode = 'step';
+            els.stepBtn.style.display = 'block';
+            els.resetBtn.style.display = 'block';
+            els.stepInfo.style.display = 'block';
+            els.stepInfo.innerText = "Debugger Ready. Click 'Next Step' to trace...";
+        }
+
+        function runNextStep() {
+            const text = els.input.value;
+            if (appState.stepIndex >= text.length) {
+                els.stepInfo.innerText = "Compression Complete.";
+                return;
+            }
+            const char = text[appState.stepIndex];
+            const combined = appState.currLZWString + char;
+            if (appState.lzwDict.hasOwnProperty(combined)) {
+                appState.currLZWString = combined;
+                els.stepInfo.innerHTML = `Matching pattern: <strong style="color:var(--accent)">"${combined.replace(/</g,'&lt;')}"</strong>. Looking for more...`;
+            } else {
+                const outCode = appState.lzwDict[appState.currLZWString];
+                const newIdx = Object.keys(appState.lzwDict).length;
+                appState.lzwDict[combined] = newIdx;
+                els.stepInfo.innerHTML = `
+                    Mismatch! Outputting Index <strong style="color:var(--success)">#${outCode}</strong> for "${appState.currLZWString.replace(/</g,'&lt;')}".<br>
+                    Adding <strong style="color:var(--warning)">"${combined.replace(/</g,'&lt;')}"</strong> to Dictionary at Slot #${newIdx}.
+                `;
+                appState.currLZWString = char;
+            }
+            appState.stepIndex++;
+        }
+
+        let debounceTimer;
+        els.input.addEventListener('input', () => {
+            if (appState.mode !== 'live') return;
+            // PERFORMANCE SHIELD: Prevents the app from hanging on large inputs
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                updateUI();
+            }, 150); 
+        });
+        els.toggleStatic.addEventListener('change', updateUI);
+        els.modeLive.addEventListener('click', () => {
+            appState.mode = 'live';
+            els.modeLive.classList.add('active');
+            els.modeStep.classList.remove('active');
+            els.stepBtn.style.display = 'none';
+            els.resetBtn.style.display = 'none';
+            els.stepInfo.style.display = 'none';
+            updateUI();
+        });
+        els.modeStep.addEventListener('click', () => {
+            els.modeStep.classList.add('active');
+            els.modeLive.classList.remove('active');
+            startDebugger();
+        });
+        els.stepBtn.addEventListener('click', runNextStep);
+        els.resetBtn.addEventListener('click', startDebugger);
+        els.input.value = `<!DOCTYPE html>\n<html>\n  <head>\n    <title>Pro Demo</title>\n  </head>\n  <body class="main-layout">\n    <div class="content-box">\n      <h1>Web Compression v2.0</h1>\n      <div class="content-box">The repetitive class="main-layout" is easily indexed.</div>\n    </div>\n  </body>\n</html>`;
+        updateUI();
+    </script>
+</body>
+</html>

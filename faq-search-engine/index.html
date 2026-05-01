@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Semantic FAQ Search | IR Engine</title>
+    <style>
+        :root {
+            --bg: #05070a;
+            --surface: #0f172a;
+            --accent: #8b5cf6;
+            --accent-glow: rgba(139, 92, 246, 0.3);
+            --text: #f8fafc;
+            --text-dim: #64748b;
+            --success: #10b981;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            background: var(--surface);
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--accent); }
+
+        main {
+            display: grid;
+            grid-template-columns: 1fr 450px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .search-section {
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            gap: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .search-bar {
+            background: var(--surface);
+            border: 2px solid #1e293b;
+            border-radius: 1rem;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-bar:focus-within { border-color: var(--accent); }
+
+        input {
+            background: transparent;
+            border: none;
+            color: var(--text);
+            flex: 1;
+            font-size: 1.1rem;
+            outline: none;
+        }
+
+        .results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .faq-card {
+            background: var(--surface);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid #1e293b;
+            transition: transform 0.2s;
+        }
+
+        .faq-card:hover { transform: translateY(-2px); border-color: var(--accent-glow); }
+
+        .score-badge {
+            font-size: 0.7rem;
+            background: var(--accent-glow);
+            color: var(--accent);
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            font-weight: 800;
+            float: right;
+        }
+
+        .question { font-weight: 700; font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--text); }
+        .answer { color: var(--text-dim); line-height: 1.6; font-size: 0.9rem; }
+
+        .sidebar {
+            background: var(--surface);
+            border-left: 1px solid #1e293b;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .viz-card {
+            background: #000;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid #1e293b;
+        }
+
+        .viz-label { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; margin-bottom: 0.5rem; }
+
+        .table-viz {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            width: 100%;
+        }
+
+        .table-viz th { text-align: left; color: var(--accent); padding-bottom: 0.5rem; }
+        .table-viz td { padding: 0.2rem 0; border-bottom: 1px solid #0f172a; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🔍 SEMANTIC FAQ SEARCH <span style="color: var(--text-dim); font-weight: 400; font-size: 0.7rem; margin-left: 10px;">VECTOR SPACE MODEL v1.0</span></h1>
+        <div id="status" style="font-size: 0.8rem; color: var(--success);">● ENGINE ACTIVE</div>
+    </header>
+
+    <main>
+        <section class="search-section">
+            <div class="search-bar">
+                <span>🔎</span>
+                <input type="text" id="query" placeholder="Ask about majors, math, coding, laptops..." autocomplete="off">
+            </div>
+
+            <div id="results" class="results-list">
+                <!-- FAQ results will appear here -->
+            </div>
+        </section>
+
+        <aside class="sidebar">
+            <div class="viz-card">
+                <div class="viz-label">Inverted Index (Fragment)</div>
+                <table class="table-viz" id="index-viz">
+                    <thead><tr><th>Term</th><th>Doc IDs</th></tr></thead>
+                    <tbody><!-- Loaded by JS --></tbody>
+                </table>
+            </div>
+
+            <div class="viz-card">
+                <div class="viz-label">IDF Weights (Term Rarity)</div>
+                <table class="table-viz" id="idf-viz">
+                    <thead><tr><th>Term</th><th>IDF Score</th></tr></thead>
+                    <tbody><!-- Loaded by JS --></tbody>
+                </table>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const FAQ_DATA = [
+            { id: 1, q: "What is the difference between CS, IT, and SE?", a: "Computer Science focuses on algorithms and theory. Software Engineering centers on large-scale development. Information Technology is about practical deployment in business." },
+            { id: 2, q: "Do I need to be a coding expert to major in CS?", a: "No. Many programs start with fundamentals. Success depends on motivation and problem-solving, not prior experience." },
+            { id: 3, q: "How important is math in Computer Science?", a: "Math is foundational. Most programs require calculus, discrete math, and statistics for algorithms." },
+            { id: 4, q: "Do I need to own a specific type of computer?", a: "Owning a laptop is highly recommended for programming assignments. Requirements vary, but a reliable machine for dev tools is usually enough." },
+            { id: 5, q: "Is CS only about programming?", a: "No. It encompasses AI, databases, cybersecurity, and networking. It's fundamentally about problem-solving." },
+            { id: 6, q: "What jobs can I get with a CS degree?", a: "Software developer, systems analyst, database admin, data scientist, and cybersecurity specialist." },
+            { id: 7, q: "Are there research or internship opportunities?", a: "Yes. Most departments encourage undergraduates to participate in research labs and provide resources for internships." },
+            { id: 8, q: "What are office hours?", a: "Scheduled times when professors are available to help students with questions or clarify course material." }
+        ];
+
+        const STOP_WORDS = new Set(["what", "is", "the", "and", "a", "do", "i", "to", "in", "how", "only", "about", "are", "there", "with", "can", "get"]);
+
+        function tokenize(text) {
+            return text.toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .split(/\s+/)
+                .filter(word => word && !STOP_WORDS.has(word));
+        }
+
+        let invertedIndex = {};
+        let idfScores = {};
+        let docVectors = {};
+
+        function buildIndex() {
+            const numDocs = FAQ_DATA.length;
+            const termDocCounts = {};
+
+            FAQ_DATA.forEach(doc => {
+                const terms = tokenize(doc.q + " " + doc.a);
+                const termFreq = {};
+                
+                terms.forEach(term => {
+                    termFreq[term] = (termFreq[term] || 0) + 1;
+                    if (!invertedIndex[term]) invertedIndex[term] = new Set();
+                    invertedIndex[term].add(doc.id);
+                });
+
+                docVectors[doc.id] = termFreq;
+                Object.keys(termFreq).forEach(t => termDocCounts[t] = (termDocCounts[t] || 0) + 1);
+            });
+
+            for (let term in termDocCounts) {
+                idfScores[term] = Math.log10(numDocs / termDocCounts[term]);
+            }
+
+            updateViz();
+        }
+
+        function calculateSimilarity(queryTerms, docId) {
+            const docTF = docVectors[docId];
+            let dotProduct = 0;
+            let queryMagnitude = 0;
+            let docMagnitude = 0;
+
+            const queryWeights = {};
+            queryTerms.forEach(t => {
+                queryWeights[t] = (queryWeights[t] || 0) + 1;
+            });
+
+            for (let term in queryWeights) {
+                const qWeight = queryWeights[term] * (idfScores[term] || 0);
+                const dWeight = (docTF[term] || 0) * (idfScores[term] || 0);
+                dotProduct += qWeight * dWeight;
+                queryMagnitude += qWeight * qWeight;
+            }
+
+            for (let term in docTF) {
+                const dWeight = docTF[term] * (idfScores[term] || 0);
+                docMagnitude += dWeight * dWeight;
+            }
+
+            if (queryMagnitude === 0 || docMagnitude === 0) return 0;
+            return dotProduct / (Math.sqrt(queryMagnitude) * Math.sqrt(docMagnitude));
+        }
+
+        function updateViz() {
+            const idxBody = document.querySelector('#index-viz tbody');
+            const idfBody = document.querySelector('#idf-viz tbody');
+
+            const terms = Object.keys(invertedIndex).slice(0, 10);
+            idxBody.innerHTML = terms.map(t => `<tr><td>${t}</td><td>${Array.from(invertedIndex[t]).join(',')}</td></tr>`).join('');
+            idfBody.innerHTML = terms.map(t => `<tr><td>${t}</td><td>${idfScores[t].toFixed(3)}</td></tr>`).join('');
+        }
+
+        const queryInput = document.getElementById('query');
+        const resultsList = document.getElementById('results');
+
+        queryInput.addEventListener('input', () => {
+            const query = queryInput.value;
+            const terms = tokenize(query);
+            
+            if (terms.length === 0) {
+                resultsList.innerHTML = FAQ_DATA.map(renderCard).join('');
+                return;
+            }
+
+            const scored = FAQ_DATA.map(doc => ({
+                ...doc,
+                score: calculateSimilarity(terms, doc.id)
+            })).filter(d => d.score > 0).sort((a,b) => b.score - a.score);
+
+            resultsList.innerHTML = scored.map(renderCard).join('');
+        });
+
+        function renderCard(doc) {
+            return `
+                <div class="faq-card">
+                    ${doc.score ? `<span class="score-badge">SIM: ${doc.score.toFixed(3)}</span>` : ''}
+                    <div class="question">${doc.q}</div>
+                    <div class="answer">${doc.a}</div>
+                </div>
+            `;
+        }
+
+        buildIndex();
+        resultsList.innerHTML = FAQ_DATA.map(renderCard).join('');
+    </script>
+</body>
+</html>
