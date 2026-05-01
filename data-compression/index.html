@@ -97,53 +97,53 @@
         }
 
         .sidebar {
-            background: var(--surface);
-            padding: 1.5rem;
-            overflow-y: auto; /* Allow the whole sidebar to scroll if screen is small */
-            border-left: 1px solid #2d3748;
+            background: #0d1117;
+            padding: 1rem;
+            overflow-y: hidden; 
+            border-left: 1px solid #21262d;
             display: flex;
             flex-direction: column;
+            gap: 0;
         }
 
         .resizer-v {
-            height: 4px;
-            background: #1e293b;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.03);
             cursor: row-resize;
-            margin: 12px 0;
-            border-radius: 2px;
+            margin: 8px 0;
             flex-shrink: 0;
             position: relative;
-            transition: background 0.2s;
+            transition: all 0.2s;
         }
 
-        .resizer-v::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 24px; height: 2px;
-            background: #334155;
-            border-radius: 1px;
+        .resizer-v:hover, .resizer-v.dragging { 
+            background: var(--accent); 
+            height: 4px;
+            box-shadow: 0 0 10px var(--accent-glow);
         }
-
-        .resizer-v:hover { background: var(--accent); }
-        .resizer-v.dragging { background: var(--accent); }
 
         .sidebar-section {
             display: flex;
             flex-direction: column;
             min-height: 60px;
-            flex-shrink: 0; /* Prevent automatic squishing */
+            flex-shrink: 0;
+            overflow: hidden;
         }
 
         .stat-card, .viz-box {
             flex: 1;
             overflow-y: auto;
-            border: 1px solid #374151;
-            border-radius: 0.75rem;
-            background: var(--surface-light);
-            padding: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            padding: 1.25rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
+
+        /* Custom Scrollbar for a premium look */
+        .stat-card::-webkit-scrollbar, .viz-box::-webkit-scrollbar { width: 4px; }
+        .stat-card::-webkit-scrollbar-thumb, .viz-box::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
 
         .viz-box.collapsed {
             max-height: 0 !important;
@@ -256,17 +256,17 @@
         <div id="main-splitter"></div>
 
         <aside class="sidebar">
-            <div class="sidebar-section" style="height: 140px;">
+            <div class="sidebar-section" style="height: 120px;">
                 <div class="stat-group">
-                    <div class="stat-card">
-                        <div class="stat-label" style="cursor: default;">Entropy (H)</div>
-                        <div id="entropy-val" class="stat-value">0.00</div>
+                    <div class="stat-card" style="display: flex; flex-direction: column; justify-content: center;">
+                        <div class="stat-label">Entropy (H)</div>
+                        <div id="entropy-val" class="stat-value" style="color: var(--accent);">0.00</div>
                         <div class="stat-sub">bits / symbol</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label" style="cursor: default;">Hybrid Efficiency</div>
-                        <div id="bits-per-sym" class="stat-value">0.00</div>
-                        <div class="stat-sub">final bits / sym</div>
+                    <div class="stat-card" style="display: flex; flex-direction: column; justify-content: center;">
+                        <div class="stat-label">Efficiency</div>
+                        <div id="bits-per-sym" class="stat-value" style="color: var(--success);">0.00</div>
+                        <div class="stat-sub">bits / sym</div>
                     </div>
                 </div>
             </div>
@@ -275,16 +275,16 @@
 
             <div class="sidebar-section" style="height: 160px;">
                 <div class="stat-card">
-                    <div class="stat-label" style="cursor: default;">Pipeline Metrics (Bytes)</div>
-                    <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.8rem;">
+                    <div class="stat-label">Pipeline Metrics</div>
+                    <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
                         <div style="display: flex; justify-content: space-between;">
-                            <span>Original:</span> <span id="size-orig">0</span>
+                            <span style="color: var(--text-dim);">Original:</span> <span id="size-orig">0</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
-                            <span>LZW Stage:</span> <span id="size-lzw">0</span>
+                            <span style="color: var(--text-dim);">LZW Stage:</span> <span id="size-lzw">0</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; color: var(--success); font-weight: bold;">
-                            <span>Hybrid (LZW+Huff):</span> <span id="size-hybrid">0</span>
+                        <div style="display: flex; justify-content: space-between; color: var(--success); font-weight: 700;">
+                            <span>Hybrid (Final):</span> <span id="size-hybrid">0</span>
                         </div>
                     </div>
                     <div class="progress-indicator" style="margin-top: 1rem;"><div id="size-progress" class="progress-fill"></div></div>
@@ -293,20 +293,20 @@
 
             <div class="resizer-v"></div>
 
-            <div class="sidebar-section" style="height: 250px;">
-                <div class="stat-label" style="margin-bottom: 0.8rem;">Active Dictionary</div>
-                <div id="dictionary-viz" class="viz-box" style="background: #000;"></div>
-                <div id="dict-controls" style="display: flex; gap: 0.5rem; margin-top: 0.8rem;">
-                    <button id="load-more-btn" style="flex:1; font-size: 0.7rem; padding: 0.4rem;">Load Next 20</button>
-                    <button id="show-all-btn" style="font-size: 0.7rem; padding: 0.4rem;">All</button>
+            <div class="sidebar-section" style="height: 300px;">
+                <div class="stat-label" style="margin-bottom: 0.6rem; padding-left: 0.5rem;">Active Dictionary</div>
+                <div id="dictionary-viz" class="viz-box"></div>
+                <div id="dict-controls" style="display: flex; gap: 0.5rem; margin-top: 0.8rem; padding: 0 0.25rem;">
+                    <button id="load-more-btn" style="flex:1; font-size: 0.7rem; background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent); color: var(--accent);">Load More</button>
+                    <button id="show-all-btn" style="font-size: 0.7rem; background: transparent;">All</button>
                 </div>
             </div>
 
             <div class="resizer-v"></div>
 
-            <div class="sidebar-section" style="height: 200px;">
-                <div class="stat-label" style="margin-bottom: 0.8rem;">Symbol Frequencies</div>
-                <div id="freq-viz" class="viz-box" style="background: #000;"></div>
+            <div class="sidebar-section" style="flex: 1; min-height: 150px;">
+                <div class="stat-label" style="margin-bottom: 0.6rem; padding-left: 0.5rem;">Symbol Frequencies</div>
+                <div id="freq-viz" class="viz-box"></div>
             </div>
         </aside>
     </main>
