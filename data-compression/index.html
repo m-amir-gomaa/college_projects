@@ -260,16 +260,7 @@
 
     <main id="main-container">
         <section class="editor-container">
-            <div class="controls">
-                <button id="mode-live" class="active">Live Mode</button>
-                <button id="mode-step">Debugger Mode</button>
-                <button id="step-btn" style="display:none;">Next Step (N)</button>
-                <button id="reset-btn" style="display:none;">Reset</button>
-            </div>
             <textarea id="input" spellcheck="false"></textarea>
-            <div id="step-display" class="step-info" style="display:none;">
-                Ready to trace compression...
-            </div>
         </section>
 
         <div id="main-splitter"></div>
@@ -343,15 +334,11 @@
 
         // This object stores the current state of the application
         let appState = {
-            mode: 'live',       // 'live' means it updates as you type
-            stepIndex: 0,       // Used in 'Debugger' mode to track the character position
-            currLZWString: "",   // The current pattern the algorithm is building
-            lzwDict: {},         // The active dictionary mapping strings to numbers
-            allLearnedEntries: [], // NEW: Stores every single pattern learned
-            displayLimit: 20     // NEW: How many to show in the UI at once
+            allLearnedEntries: [], 
+            displayLimit: 20     
         };
 
-        // Cache the HTML elements so we don't have to search for them every time
+        // Cache the HTML elements
         const els = {
             input: document.getElementById('input'),
             entropy: document.getElementById('entropy-val'),
@@ -364,11 +351,6 @@
             dictViz: document.getElementById('dictionary-viz'),
             freqViz: document.getElementById('freq-viz'),
             toggleStatic: document.getElementById('static-dict-toggle'),
-            modeLive: document.getElementById('mode-live'),
-            modeStep: document.getElementById('mode-step'),
-            stepBtn: document.getElementById('step-btn'),
-            resetBtn: document.getElementById('reset-btn'),
-            stepInfo: document.getElementById('step-display'),
             loadMoreBtn: document.getElementById('load-more-btn')
         };
 
@@ -577,54 +559,11 @@
             });
         });
 
-        /**
-         * DEBUGGER LOGIC
-         * This allows tracing the LZW algorithm step-by-step.
-         */
-        function startDebugger() {
-            appState.stepIndex = 0;
-            appState.currLZWString = "";
-            appState.lzwDict = getInitialDict(els.toggleStatic.checked);
-            appState.mode = 'step';
-            els.stepBtn.style.display = 'block';
-            els.resetBtn.style.display = 'block';
-            els.stepInfo.style.display = 'block';
-            els.stepInfo.innerText = "Debugger Ready. Click 'Next Step' to trace...";
-        }
-
-        function runNextStep() {
-            const text = els.input.value;
-            if (appState.stepIndex >= text.length) {
-                els.stepInfo.innerText = "Compression Complete.";
-                return;
-            }
-
-            const char = text[appState.stepIndex];
-            const combined = appState.currLZWString + char;
-            
-            if (appState.lzwDict.hasOwnProperty(combined)) {
-                appState.currLZWString = combined;
-                els.stepInfo.innerHTML = `Matching pattern: <strong style="color:var(--accent)">"${combined.replace(/</g,'&lt;')}"</strong>. Looking for more...`;
-            } else {
-                const outCode = appState.lzwDict[appState.currLZWString];
-                const newIdx = Object.keys(appState.lzwDict).length;
-                appState.lzwDict[combined] = newIdx;
-                
-                els.stepInfo.innerHTML = `
-                    Mismatch! Outputting Index <strong style="color:var(--success)">#${outCode}</strong> for "${appState.currLZWString.replace(/</g,'&lt;')}".<br>
-                    Adding <strong style="color:var(--warning)">"${combined.replace(/</g,'&lt;')}"</strong> to Dictionary at Slot #${newIdx}.
-                `;
-                appState.currLZWString = char;
-            }
-            
-            appState.stepIndex++;
-        }
 
         // --- EVENT LISTENERS ---
 
         let debounceTimer;
         els.input.addEventListener('input', () => {
-            if (appState.mode !== 'live') return;
             // PERFORMANCE SHIELD: Prevents the app from hanging on large inputs
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
@@ -633,25 +572,6 @@
         });
 
         els.toggleStatic.addEventListener('change', updateUI);
-
-        els.modeLive.addEventListener('click', () => {
-            appState.mode = 'live';
-            els.modeLive.classList.add('active');
-            els.modeStep.classList.remove('active');
-            els.stepBtn.style.display = 'none';
-            els.resetBtn.style.display = 'none';
-            els.stepInfo.style.display = 'none';
-            updateUI();
-        });
-
-        els.modeStep.addEventListener('click', () => {
-            els.modeStep.classList.add('active');
-            els.modeLive.classList.remove('active');
-            startDebugger();
-        });
-
-        els.stepBtn.addEventListener('click', runNextStep);
-        els.resetBtn.addEventListener('click', startDebugger);
 
         // Initial Data for the first load
         els.input.value = `<!DOCTYPE html>\n<html>\n  <head>\n    <title>Pro Demo</title>\n  </head>\n  <body class="main-layout">\n    <div class="content-box">\n      <h1>Web Compression v2.0</h1>\n      <div class="content-box">The repetitive class="main-layout" is easily indexed.</div>\n    </div>\n  </body>\n</html>`;
