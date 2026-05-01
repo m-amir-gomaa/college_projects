@@ -237,6 +237,10 @@
 
             <div class="stat-label">Active Dictionary</div>
             <div id="dictionary-viz" class="viz-box"></div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <button id="load-more-btn" style="flex:1; font-size: 0.65rem;">Load Next 20</button>
+                <button id="show-all-btn" style="font-size: 0.65rem;">All</button>
+            </div>
 
             <div class="stat-label">Symbol Frequencies (Huffman Pass)</div>
             <div id="freq-viz" class="viz-box"></div>
@@ -260,6 +264,8 @@
             stepIndex: 0,       // Used in 'Debugger' mode to track the character position
             currLZWString: "",   // The current pattern the algorithm is building
             lzwDict: {},         // The active dictionary mapping strings to numbers
+            allLearnedEntries: [], // NEW: Stores every single pattern learned
+            displayLimit: 20     // NEW: How many to show in the UI at once
         };
 
         // Cache the HTML elements so we don't have to search for them every time
@@ -279,7 +285,8 @@
             modeStep: document.getElementById('mode-step'),
             stepBtn: document.getElementById('step-btn'),
             resetBtn: document.getElementById('reset-btn'),
-            stepInfo: document.getElementById('step-display')
+            stepInfo: document.getElementById('step-display'),
+            loadMoreBtn: document.getElementById('load-more-btn')
         };
 
         /**
@@ -334,7 +341,7 @@
             
             let curr = "";
             let result = [];
-            let newEntries = [];
+            let learned = [];
 
             // We loop through every character in the source text.
             for (let char of data) {
@@ -353,8 +360,8 @@
                     // Now we "Learn": Add the new 'combined' pattern to the dictionary.
                     dict[combined] = dictSize++;
                     
-                    // (UI code: save the new pattern so we can show it in the list)
-                    if (newEntries.length < 20) newEntries.push({ key: combined, val: dictSize - 1 });
+                    // NO LIMIT: We now record everything
+                    learned.push({ key: combined, val: dictSize - 1 });
                     
                     // Reset 'curr' to start a new search beginning with the character that failed.
                     curr = char;
@@ -362,7 +369,7 @@
             }
             // Output the final pattern that was being built.
             if (curr !== "") result.push(dict[curr]);
-            return { codes: result, entries: newEntries, finalDictSize: dictSize };
+            return { codes: result, entries: learned, finalDictSize: dictSize };
         }
 
         /**
@@ -392,6 +399,29 @@
         }
 
         /**
+         * DICTIONARY RENDERING (Pagination)
+         * This displays the patterns the engine has learned so far.
+         */
+        function renderDictionary() {
+            const list = appState.allLearnedEntries.slice(0, appState.displayLimit);
+            els.dictViz.innerHTML = list.map(e => `
+                <div class="dict-entry">
+                    <span class="dict-key">${e.key.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span> 
+                    <span class="dict-val">#${e.val}</span>
+                </div>
+            `).join('');
+            
+            const remaining = appState.allLearnedEntries.length - appState.displayLimit;
+            if (remaining > 0) {
+                els.loadMoreBtn.innerText = `Load Next 20 (${remaining} left)`;
+                els.loadMoreBtn.style.opacity = "1";
+            } else {
+                els.loadMoreBtn.innerText = "All Patterns Loaded";
+                els.loadMoreBtn.style.opacity = "0.5";
+            }
+        }
+
+        /**
          * THE UI UPDATE LOOP
          * This runs the whole pipeline and updates the screen.
          */
@@ -401,46 +431,51 @@
             
             if (!val) return;
 
-            // 1. Calculate Entropy (The Baseline)
+            // ... (Entropy and Size math same as before) ...
             const entropy = calculateEntropy(val);
             els.entropy.innerText = entropy.toFixed(3);
-            
-            // 2. Calculate Original Size (1 char = 1 byte)
             const origBytes = new Blob([val]).size;
             els.sizeOrig.innerText = `${origBytes} B`;
 
             // 3. Run LZW Encoding
             const { codes, entries } = lzwEncode(val, useStatic);
             
-            // 4. Calculate LZW Stage Size (Assuming 12-bit fixed width indices)
+            // 4. Update the state for rendering
+            appState.allLearnedEntries = entries;
+            
+            // ... (Rest of size math) ...
             const lzwBytes = Math.ceil(codes.length * 1.5);
             els.sizeLzw.innerText = `${lzwBytes} B`;
-
-            // 5. Run the Hybrid Huffman pass
             const { totalBits, freqMap } = calculateHybridBitCost(codes);
-            
-            // 6. Final Size (The most compressed version)
             const hybridBytes = Math.ceil(totalBits / 8);
             els.sizeHybrid.innerText = `${hybridBytes} B`;
-
-            // 7. Update the Savings Badge
             const finalBitsPerSym = totalBits / val.length;
             els.bitsPerSym.innerText = finalBitsPerSym.toFixed(3);
-
             const savings = ((1 - (hybridBytes / origBytes)) * 100).toFixed(1);
             els.savings.innerText = `SAVINGS: ${savings}%`;
             els.sizeProgress.style.width = `${Math.min(100, (hybridBytes / origBytes) * 100)}%`;
 
-            // 8. Visual stuff (Dictionary table and Frequency chart)
-            els.dictViz.innerHTML = entries.map(e => `
-                <div class="dict-entry"><span class="dict-key">${e.key.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span> <span class="dict-val">#${e.val}</span></div>
-            `).join('');
+            // 8. Render the dictionary list (using the new paginated function)
+            renderDictionary();
 
             const sortedFreq = Object.entries(freqMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
             els.freqViz.innerHTML = sortedFreq.map(([idx, count]) => `
                 <div class="dict-entry"><span class="dict-key">Code #${idx}</span> <span class="dict-val">${count} hits</span></div>
             `).join('');
         }
+
+        // --- NEW LISTENERS ---
+        els.loadMoreBtn.addEventListener('click', () => {
+            appState.displayLimit += 20;
+            renderDictionary();
+        });
+
+        document.getElementById('show-all-btn').addEventListener('click', () => {
+            const count = appState.allLearnedEntries.length;
+            if (count > 1000 && !confirm(`Displaying ${count} entries might lag your browser. Proceed?`)) return;
+            appState.displayLimit = count;
+            renderDictionary();
+        });
 
         /**
          * DEBUGGER LOGIC
