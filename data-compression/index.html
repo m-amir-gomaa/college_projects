@@ -57,10 +57,20 @@
 
         main {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 350px 6px 1fr; /* Reduced editor width, expanded sidebar */
             flex: 1;
             overflow: hidden;
         }
+
+        #main-splitter {
+            background: #1e293b;
+            cursor: col-resize;
+            transition: background 0.2s;
+            z-index: 20;
+        }
+
+        #main-splitter:hover { background: var(--accent); }
+        #main-splitter.dragging { background: var(--accent); width: 8px; }
 
         .editor-container {
             display: flex;
@@ -68,6 +78,7 @@
             padding: 1.5rem;
             gap: 1rem;
             background: #000;
+            min-width: 200px;
         }
 
         textarea {
@@ -86,41 +97,97 @@
         }
 
         .sidebar {
-            background: var(--surface);
-            padding: 1.5rem;
-            overflow-y: auto;
-            border-left: 1px solid #2d3748;
+            background: #0d1117;
+            padding: 1rem;
+            overflow-y: hidden; 
+            border-left: 1px solid #21262d;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 0;
         }
 
-        .stat-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-
-        .stat-card {
-            background: var(--surface-light);
-            padding: 1rem;
-            border-radius: 0.75rem;
-            border: 1px solid #374151;
+        .resizer-v {
+            height: 2px;
+            background: rgba(255, 255, 255, 0.03);
+            cursor: row-resize;
+            margin: 8px 0;
+            flex-shrink: 0;
             position: relative;
+            transition: all 0.2s;
         }
 
-        .stat-label { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-        .stat-value { font-size: 1.2rem; font-weight: 800; color: var(--text); }
-        .stat-sub { font-size: 0.65rem; color: var(--accent); margin-top: 0.25rem; }
+        .resizer-v:hover, .resizer-v.dragging { 
+            background: var(--accent); 
+            height: 4px;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
 
-        .viz-box {
-            background: #000;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            border: 1px solid #374151;
-            max-height: 200px;
+        .sidebar-section {
+            display: flex;
+            flex-direction: column;
+            min-height: 60px;
+            flex-shrink: 0;
+            overflow: hidden;
+            /* Transition removed from here to prevent dragging lag */
+        }
+
+        .sidebar-section.animating {
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar-section.collapsed {
+            height: 32px !important;
+            min-height: 32px !important;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-section.collapsed .viz-box,
+        .sidebar-section.collapsed .stat-card,
+        .sidebar-section.collapsed .stat-sub,
+        .sidebar-section.collapsed #dict-controls,
+        .sidebar-section.collapsed .progress-indicator,
+        .sidebar-section.collapsed > div:not(.stat-label):not(.stat-group) {
+            display: none !important;
+        }
+
+        /* If the whole stat-group is inside a collapsed section */
+        .sidebar-section.collapsed .stat-group { display: none !important; }
+
+        /* Hide the resizer after a collapsed section */
+        .sidebar-section.collapsed + .resizer-v {
+            display: none !important;
+        }
+
+        .stat-card, .viz-box {
+            flex: 1;
             overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            padding: 1.25rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
+
+        /* Custom Scrollbar */
+        .stat-card::-webkit-scrollbar, .viz-box::-webkit-scrollbar { width: 4px; }
+        .stat-card::-webkit-scrollbar-thumb, .viz-box::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+
+        .stat-label { 
+            color: var(--text-dim); 
+            font-size: 0.7rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            margin-bottom: 0.5rem; 
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            user-select: none;
+        }
+
+        .stat-label:hover { color: var(--accent); }
+        .stat-label::after { content: '▼'; font-size: 0.5rem; transition: transform 0.3s; }
+        .stat-label.collapsed::after { transform: rotate(-90deg); }
 
         .dict-entry {
             display: flex;
@@ -177,12 +244,28 @@
             border-left: 3px solid var(--accent);
             margin-top: 1rem;
         }
+
+        #huffman-tree-svg {
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.2);
+            border-radius: 0.5rem;
+        }
+
+        .node-circle { fill: var(--surface-light); stroke: var(--accent); stroke-width: 1.5; }
+        .node-text { fill: var(--text); font-size: 8px; font-family: monospace; text-anchor: middle; }
+        .node-link { stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 2; opacity: 0.5; }
+        .node-label { fill: var(--warning); font-size: 7px; font-weight: bold; }
     </style>
 </head>
 <body>
     <header>
         <h1>⚡ WEB PAGE TEXT COMPRESSOR <span style="color: var(--text-dim); font-weight: 400; font-size: 0.7rem; margin-left: 10px;">HYBRID PIPELINE v2.0</span></h1>
         <div class="pipeline-status">
+            <label class="toggle-container" style="background: var(--surface-light); padding: 0.4rem 0.8rem; border-radius: 0.4rem; border: 1px solid #374151; color: var(--accent); cursor: pointer; font-weight: 600;">
+                <input type="file" id="file-input" style="display: none;">
+                <span>📂 LOAD FILE</span>
+            </label>
             <label class="toggle-container">
                 <input type="checkbox" id="static-dict-toggle" checked>
                 <span>Pre-loaded HTML Dictionary</span>
@@ -191,72 +274,96 @@
         </div>
     </header>
 
-    <main>
+    <main id="main-container">
         <section class="editor-container">
-            <div class="controls">
-                <button id="mode-live" class="active">Live Mode</button>
-                <button id="mode-step">Debugger Mode</button>
-                <button id="step-btn" style="display:none;">Next Step (N)</button>
-                <button id="reset-btn" style="display:none;">Reset</button>
-            </div>
             <textarea id="input" spellcheck="false"></textarea>
-            <div id="step-display" class="step-info" style="display:none;">
-                Ready to trace compression...
-            </div>
         </section>
 
+        <div id="main-splitter"></div>
+
         <aside class="sidebar">
-            <div class="stat-group">
-                <div class="stat-card">
-                    <div class="stat-label">Entropy (H)</div>
-                    <div id="entropy-val" class="stat-value">0.00</div>
-                    <div class="stat-sub">bits / symbol</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Hybrid Efficiency</div>
-                    <div id="bits-per-sym" class="stat-value">0.00</div>
-                    <div class="stat-sub">final bits / sym</div>
+            <div class="sidebar-section collapsed" style="height: 120px;">
+                <div class="stat-group">
+                    <div class="stat-card" style="display: flex; flex-direction: column; justify-content: center;">
+                        <div class="stat-label collapsed">Entropy (H)</div>
+                        <div id="entropy-val" class="stat-value" style="color: var(--accent);">0.00</div>
+                        <div class="stat-sub">bits / symbol</div>
+                    </div>
+                    <div class="stat-card" style="display: flex; flex-direction: column; justify-content: center;">
+                        <div class="stat-label collapsed">Efficiency</div>
+                        <div id="bits-per-sym" class="stat-value" style="color: var(--success);">0.00</div>
+                        <div class="stat-sub">bits / sym</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="stat-card">
-                <div class="stat-label">Pipeline Metrics (Bytes)</div>
-                <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem;">
-                    <div style="display: flex; justify-content: space-between;">
-                        <span>Original:</span> <span id="size-orig">0</span>
+            <div class="resizer-v"></div>
+
+            <div class="sidebar-section collapsed" style="height: 160px;">
+                <div class="stat-card">
+                    <div class="stat-label collapsed">Pipeline Metrics</div>
+                    <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-dim);">Original:</span> <span id="size-orig">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-dim);">LZW Stage:</span> <span id="size-lzw">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; color: var(--success); font-weight: 700;">
+                            <span>Hybrid (LZW+Huff):</span> <span id="size-hybrid">0</span>
+                        </div>
                     </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span>LZW Stage:</span> <span id="size-lzw">0</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; color: var(--success); font-weight: bold;">
-                        <span>Hybrid (LZW+Huff):</span> <span id="size-hybrid">0</span>
-                    </div>
+                    <div class="progress-indicator" style="margin-top: 1rem;"><div id="size-progress" class="progress-fill"></div></div>
                 </div>
-                <div class="progress-indicator"><div id="size-progress" class="progress-fill"></div></div>
             </div>
 
-            <div class="stat-label">Active Dictionary</div>
-            <div id="dictionary-viz" class="viz-box"></div>
+            <div class="resizer-v"></div>
 
-            <div class="stat-label">Symbol Frequencies (Huffman Pass)</div>
-            <div id="freq-viz" class="viz-box"></div>
+            <div class="sidebar-section collapsed" style="height: 300px;">
+                <div class="stat-label collapsed" style="margin-bottom: 0.6rem; padding-left: 0.5rem;">Active Dictionary</div>
+                <div id="dictionary-viz" class="viz-box"></div>
+                <div id="dict-controls" style="display: flex; gap: 0.5rem; margin-top: 0.8rem; padding: 0 0.25rem;">
+                    <button id="load-more-btn" style="flex:1; font-size: 0.7rem; background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent); color: var(--accent);">Load More</button>
+                    <button id="show-all-btn" style="font-size: 0.7rem; background: transparent;">All</button>
+                </div>
+            </div>
+
+            <div class="resizer-v"></div>
+
+            <div class="sidebar-section" style="flex: 1; min-height: 150px;">
+                <div class="stat-label" style="margin-bottom: 0.6rem; padding-left: 0.5rem;">Symbol Frequencies (Huffman Pass)</div>
+                <div id="freq-viz" class="viz-box"></div>
+            </div>
+
+            <div class="resizer-v"></div>
+
+            <div class="sidebar-section" style="flex: 1.5; min-height: 350px;">
+                <div class="stat-label" style="margin-bottom: 0.6rem; padding-left: 0.5rem;">Visual Huffman Tree</div>
+                <div class="viz-box" style="padding: 0; overflow: hidden; position: relative; height: 100%;">
+                    <svg id="huffman-tree-svg" style="width:100%; height:100%"></svg>
+                </div>
+            </div>
         </aside>
     </main>
 
     <script>
+        /**
+         * GLOBAL CONSTANTS
+         * These are the "Common Tags" we pre-load to make the compressor smarter.
+         */
         const HTML_TOKENS = [
             "<div>", "</div>", "<span>", "</span>", "<p>", "</p>", "class=\"", "id=\"", "style=\"", "href=\"", 
             "src=\"", "<html>", "</html>", "<head>", "</head>", "<body>", "</body>", "<li>", "</li>", "<ul>", 
             "</ul>", "<table>", "</table>", "<tr>", "</tr>", "<td>", "</td>", "<img>", "<a>", "</a>", "DOCTYPE html", "UTF-8"
         ];
 
+        // This object stores the current state of the application
         let appState = {
-            mode: 'live',
-            stepIndex: 0,
-            currLZWString: "",
-            lzwDict: {},
+            allLearnedEntries: [], 
+            displayLimit: 20     
         };
 
+        // Cache the HTML elements
         const els = {
             input: document.getElementById('input'),
             entropy: document.getElementById('entropy-val'),
@@ -269,82 +376,272 @@
             dictViz: document.getElementById('dictionary-viz'),
             freqViz: document.getElementById('freq-viz'),
             toggleStatic: document.getElementById('static-dict-toggle'),
-            modeLive: document.getElementById('mode-live'),
-            modeStep: document.getElementById('mode-step'),
-            stepBtn: document.getElementById('step-btn'),
-            resetBtn: document.getElementById('reset-btn'),
-            stepInfo: document.getElementById('step-display')
+            loadMoreBtn: document.getElementById('load-more-btn'),
+            fileInput: document.getElementById('file-input')
         };
 
+        /**
+         * SHANNON ENTROPY CALCULATION
+         * This function calculates the "Complexity" or "Uncertainty" of the data.
+         * Math: H(X) = -Sum( P(i) * log2( P(i) ) )
+         */
         function calculateEntropy(str) {
+            // If the input is empty, entropy is zero.
             if (!str) return 0;
+            
             const freq = {};
+            // 1. We count how many times every character appears (Frequency)
             for (let char of str) freq[char] = (freq[char] || 0) + 1;
+            
             let entropy = 0;
             for (let char in freq) {
+                // 2. We calculate the Probability (P) of each character
                 const p = freq[char] / str.length;
+                
+                // 3. We apply the Shannon formula to get the bit-value of the character.
+                // Rare characters (low P) give higher entropy (more "surprise").
                 entropy -= p * Math.log2(p);
             }
             return entropy;
         }
 
+        /**
+         * DICTIONARY INITIALIZATION
+         * This creates the starting "Book of Patterns".
+         */
         function getInitialDict(useStatic) {
             let dict = {};
+            // Start with standard ASCII (0 to 255)
             for (let i = 0; i < 256; i++) dict[String.fromCharCode(i)] = i;
+            
+            // If the user checked the "Static" box, add our HTML tags too
             if (useStatic) {
                 HTML_TOKENS.forEach((t, i) => { dict[t] = 256 + i; });
             }
             return dict;
         }
 
+        /**
+         * LZW (LEMPEL-ZIV-WELCH) ENCODING
+         * This is the heart of the compressor. It turns patterns into numbers.
+         */
         function lzwEncode(data, useStatic) {
+            // Start with the basic dictionary (ASCII + optional HTML tags)
             let dict = getInitialDict(useStatic);
             let dictSize = Object.keys(dict).length;
+            
             let curr = "";
             let result = [];
-            let newEntries = [];
+            let learned = [];
 
+            // We loop through every character in the source text.
             for (let char of data) {
+                // We combine the 'current' pattern with the 'next' character.
                 let combined = curr + char;
+                
+                // If we HAVE seen this combination before...
                 if (dict.hasOwnProperty(combined)) {
+                    // ...don't output anything. Keep building a longer pattern!
                     curr = combined;
                 } else {
+                    // Mismatch! We have NOT seen 'combined' before.
+                    // So we output the index of the part we DO know ('curr').
                     result.push(dict[curr]);
+                    
+                    // Now we "Learn": Add the new 'combined' pattern to the dictionary.
                     dict[combined] = dictSize++;
-                    if (newEntries.length < 20) newEntries.push({ key: combined, val: dictSize - 1 });
+                    
+                    // NO LIMIT: We now record everything
+                    learned.push({ key: combined, val: dictSize - 1 });
+                    
+                    // Reset 'curr' to start a new search beginning with the character that failed.
                     curr = char;
                 }
             }
+            // Output the final pattern that was being built.
             if (curr !== "") result.push(dict[curr]);
-            return { codes: result, entries: newEntries, finalDictSize: dictSize };
+            return { codes: result, entries: learned, finalDictSize: dictSize };
         }
 
+        /**
+         * HUFFMAN TREE CONSTRUCTION
+         */
+        function buildHuffmanTree(freqMap) {
+            const nodes = Object.entries(freqMap).map(([id, freq]) => ({
+                id,
+                freq,
+                left: null,
+                right: null,
+                isLeaf: true
+            }));
+
+            if (nodes.length === 0) return null;
+
+            while (nodes.length > 1) {
+                nodes.sort((a, b) => a.freq - b.freq);
+                const left = nodes.shift();
+                const right = nodes.shift();
+                const parent = {
+                    id: null,
+                    freq: left.freq + right.freq,
+                    left,
+                    right,
+                    isLeaf: false
+                };
+                nodes.push(parent);
+            }
+            return nodes[0];
+        }
+
+        function generateHuffmanCodes(node, prefix = "", codes = {}) {
+            if (!node) return codes;
+            if (node.isLeaf) {
+                codes[node.id] = prefix || "0";
+            } else {
+                generateHuffmanCodes(node.left, prefix + "0", codes);
+                generateHuffmanCodes(node.right, prefix + "1", codes);
+            }
+            return codes;
+        }
+
+        /**
+         * THE HYBRID PASS (Statistical Optimization)
+         */
         function calculateHybridBitCost(indices) {
-            if (!indices.length) return { totalBits: 0, freqMap: {} };
+            if (!indices.length) return { totalBits: 0, freqMap: {}, tree: null, huffCodes: {} };
+            
             const freq = {};
             indices.forEach(idx => freq[idx] = (freq[idx] || 0) + 1);
+            
+            const tree = buildHuffmanTree(freq);
+            const huffCodes = generateHuffmanCodes(tree);
+            
             let totalBits = 0;
-            const numIndices = indices.length;
-            for (let idx in freq) {
-                const p = freq[idx] / numIndices;
-                const bitLength = -Math.log2(p);
-                totalBits += freq[idx] * bitLength;
-            }
-            return { totalBits, freqMap: freq };
+            indices.forEach(idx => {
+                totalBits += huffCodes[idx].length;
+            });
+            
+            return { totalBits, freqMap: freq, tree, huffCodes };
         }
 
+        /**
+         * DICTIONARY RENDERING (Pagination & Optimization)
+         * This displays the patterns the engine has learned.
+         * Optimized for large inputs using string batching to avoid DOM thrashing.
+         */
+        function renderDictionary() {
+            const list = appState.allLearnedEntries.slice(0, appState.displayLimit);
+            
+            // Optimization: Building a single large string is faster than multiple DOM insertions
+            let html = "";
+            for (let i = 0; i < list.length; i++) {
+                const e = list[i];
+                html += `
+                    <div class="dict-entry">
+                        <span class="dict-key">${e.key.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span> 
+                        <span class="dict-val">#${e.val}</span>
+                    </div>`;
+            }
+            els.dictViz.innerHTML = html;
+            
+            const remaining = appState.allLearnedEntries.length - appState.displayLimit;
+            if (remaining > 0) {
+                els.loadMoreBtn.innerText = `Load Next 50 (${remaining} left)`;
+                els.loadMoreBtn.style.opacity = "1";
+            } else {
+                els.loadMoreBtn.innerText = "All Patterns Loaded";
+                els.loadMoreBtn.style.opacity = "0.5";
+            }
+        }
+
+        /**
+         * SVG TREE RENDERER (Performance Optimized)
+         * Renders the Huffman tree as an SVG.
+         * To prevent lag on huge inputs, we only visualize the top 25 most frequent symbols.
+         */
+        function renderHuffmanTree(fullRoot, freqMap) {
+            const svg = document.getElementById('huffman-tree-svg');
+            svg.innerHTML = '';
+            if (!fullRoot) return;
+
+            // PERFORMANCE SHIELD: If there are too many symbols, the tree becomes unreadable and slow.
+            // We rebuild a smaller "Visual Tree" for the top 25 symbols to keep the UI snappy.
+            const sortedEntries = Object.entries(freqMap).sort((a,b) => b[1] - a[1]).slice(0, 25);
+            const limitedFreqMap = Object.fromEntries(sortedEntries);
+            const visualRoot = buildHuffmanTree(limitedFreqMap);
+
+            const width = svg.clientWidth || 400;
+            const height = svg.clientHeight || 350;
+            const margin = { top: 40, right: 30, bottom: 20, left: 30 };
+            
+            let svgContent = "";
+
+            function getDepth(node) {
+                if (!node) return 0;
+                return 1 + Math.max(getDepth(node.left), getDepth(node.right));
+            }
+
+            const maxDepth = getDepth(visualRoot);
+            const levelHeight = (height - margin.top - margin.bottom) / (maxDepth || 1);
+
+            function generateNodeMarkup(node, x, y, xRange, depth) {
+                if (!node) return;
+
+                // Draw links (Lines)
+                if (node.left) {
+                    const nextX = x - xRange / 4;
+                    const nextY = y + levelHeight;
+                    svgContent += `<line x1="${x}" y1="${y}" x2="${nextX}" y2="${nextY}" class="node-link" />`;
+                    svgContent += `<text x="${(x + nextX) / 2 - 5}" y="${(y + nextY) / 2}" class="node-label">0</text>`;
+                    generateNodeMarkup(node.left, nextX, nextY, xRange / 2, depth + 1);
+                }
+
+                if (node.right) {
+                    const nextX = x + xRange / 4;
+                    const nextY = y + levelHeight;
+                    generateNodeMarkup(node.right, nextX, nextY, xRange / 2, depth + 1);
+                }
+
+                // Draw Node (Circle)
+                const radius = node.isLeaf ? 14 : 8;
+                const opacity = node.isLeaf ? 1 : 0.5;
+                svgContent += `<circle cx="${x}" cy="${y}" r="${radius}" class="node-circle" style="opacity: ${opacity}" />`;
+
+                // Draw ID or Frequency (Text)
+                const label = node.isLeaf ? `#${node.id}` : node.freq;
+                svgContent += `<text x="${x}" y="${y + 3}" class="node-text">${label}</text>`;
+            }
+
+            generateNodeMarkup(visualRoot, width / 2, margin.top, width - margin.left - margin.right, 0);
+            svg.innerHTML = svgContent;
+        }
+
+        /**
+         * THE UI UPDATE LOOP
+         * This runs the whole pipeline and updates the screen.
+         */
         function updateUI() {
             const val = els.input.value;
             const useStatic = els.toggleStatic.checked;
+            
             if (!val) return;
+
+            // ... (Entropy and Size math same as before) ...
             const entropy = calculateEntropy(val);
             els.entropy.innerText = entropy.toFixed(3);
             const origBytes = new Blob([val]).size;
             els.sizeOrig.innerText = `${origBytes} B`;
+
+            // 3. Run LZW Encoding
             const { codes, entries } = lzwEncode(val, useStatic);
+            
+            // 4. Update the state for rendering
+            appState.allLearnedEntries = entries;
+            
+            // ... (Rest of size math) ...
             const lzwBytes = Math.ceil(codes.length * 1.5);
             els.sizeLzw.innerText = `${lzwBytes} B`;
-            const { totalBits, freqMap } = calculateHybridBitCost(codes);
+            const { totalBits, freqMap, tree, huffCodes } = calculateHybridBitCost(codes);
             const hybridBytes = Math.ceil(totalBits / 8);
             els.sizeHybrid.innerText = `${hybridBytes} B`;
             const finalBitsPerSym = totalBits / val.length;
@@ -352,78 +649,151 @@
             const savings = ((1 - (hybridBytes / origBytes)) * 100).toFixed(1);
             els.savings.innerText = `SAVINGS: ${savings}%`;
             els.sizeProgress.style.width = `${Math.min(100, (hybridBytes / origBytes) * 100)}%`;
-            els.dictViz.innerHTML = entries.map(e => `
-                <div class="dict-entry"><span class="dict-key">${e.key.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span> <span class="dict-val">#${e.val}</span></div>
-            `).join('');
+
+            // 8. Render the dictionary list (using the optimized paginated function)
+            renderDictionary();
+
+            // 9. Render the Huffman Tree (Optimized for top symbols)
+            renderHuffmanTree(tree, freqMap);
+
             const sortedFreq = Object.entries(freqMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
             els.freqViz.innerHTML = sortedFreq.map(([idx, count]) => `
-                <div class="dict-entry"><span class="dict-key">Code #${idx}</span> <span class="dict-val">${count} hits</span></div>
+                <div class="dict-entry">
+                    <span class="dict-key">Code #${idx}</span> 
+                    <span class="dict-val" style="color:var(--text-dim)">${count} hits</span>
+                    <span class="dict-val" style="color:var(--warning); font-size: 0.65rem; margin-left: 10px;">bits: ${huffCodes[idx]}</span>
+                </div>
             `).join('');
         }
 
-        function startDebugger() {
-            appState.stepIndex = 0;
-            appState.currLZWString = "";
-            appState.lzwDict = getInitialDict(els.toggleStatic.checked);
-            appState.mode = 'step';
-            els.stepBtn.style.display = 'block';
-            els.resetBtn.style.display = 'block';
-            els.stepInfo.style.display = 'block';
-            els.stepInfo.innerText = "Debugger Ready. Click 'Next Step' to trace...";
-        }
+        // --- DICTIONARY CONTROLLERS ---
+        els.loadMoreBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent collapsing the panel when clicking buttons
+            appState.displayLimit += 50;
+            renderDictionary();
+        });
 
-        function runNextStep() {
-            const text = els.input.value;
-            if (appState.stepIndex >= text.length) {
-                els.stepInfo.innerText = "Compression Complete.";
-                return;
-            }
-            const char = text[appState.stepIndex];
-            const combined = appState.currLZWString + char;
-            if (appState.lzwDict.hasOwnProperty(combined)) {
-                appState.currLZWString = combined;
-                els.stepInfo.innerHTML = `Matching pattern: <strong style="color:var(--accent)">"${combined.replace(/</g,'&lt;')}"</strong>. Looking for more...`;
-            } else {
-                const outCode = appState.lzwDict[appState.currLZWString];
-                const newIdx = Object.keys(appState.lzwDict).length;
-                appState.lzwDict[combined] = newIdx;
-                els.stepInfo.innerHTML = `
-                    Mismatch! Outputting Index <strong style="color:var(--success)">#${outCode}</strong> for "${appState.currLZWString.replace(/</g,'&lt;')}".<br>
-                    Adding <strong style="color:var(--warning)">"${combined.replace(/</g,'&lt;')}"</strong> to Dictionary at Slot #${newIdx}.
-                `;
-                appState.currLZWString = char;
-            }
-            appState.stepIndex++;
-        }
+        document.getElementById('show-all-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent collapsing
+            const count = appState.allLearnedEntries.length;
+            if (count > 1000 && !confirm(`Displaying ${count} entries might lag your browser. Proceed?`)) return;
+            appState.displayLimit = count;
+            renderDictionary();
+        });
+
+        // --- COLLAPSIBLE PANELS ---
+        document.querySelectorAll('.stat-label').forEach(label => {
+            label.addEventListener('click', () => {
+                const section = label.closest('.sidebar-section');
+                if (section) {
+                    section.classList.add('animating');
+                    section.classList.toggle('collapsed');
+                    label.classList.toggle('collapsed');
+                    
+                    // Clean up class after animation finishes
+                    setTimeout(() => section.classList.remove('animating'), 350);
+                }
+            });
+        });
+
+
+        // --- EVENT LISTENERS ---
 
         let debounceTimer;
         els.input.addEventListener('input', () => {
-            if (appState.mode !== 'live') return;
             // PERFORMANCE SHIELD: Prevents the app from hanging on large inputs
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 updateUI();
             }, 150); 
         });
+
         els.toggleStatic.addEventListener('change', updateUI);
-        els.modeLive.addEventListener('click', () => {
-            appState.mode = 'live';
-            els.modeLive.classList.add('active');
-            els.modeStep.classList.remove('active');
-            els.stepBtn.style.display = 'none';
-            els.resetBtn.style.display = 'none';
-            els.stepInfo.style.display = 'none';
-            updateUI();
+
+        // --- FILE LOADING LOGIC ---
+        els.fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                els.input.value = event.target.result;
+                updateUI();
+            };
+            reader.readAsText(file);
         });
-        els.modeStep.addEventListener('click', () => {
-            els.modeStep.classList.add('active');
-            els.modeLive.classList.remove('active');
-            startDebugger();
-        });
-        els.stepBtn.addEventListener('click', runNextStep);
-        els.resetBtn.addEventListener('click', startDebugger);
+
+        // Initial Data for the first load
         els.input.value = `<!DOCTYPE html>\n<html>\n  <head>\n    <title>Pro Demo</title>\n  </head>\n  <body class="main-layout">\n    <div class="content-box">\n      <h1>Web Compression v2.0</h1>\n      <div class="content-box">The repetitive class="main-layout" is easily indexed.</div>\n    </div>\n  </body>\n</html>`;
         updateUI();
+        // --- HORIZONTAL RESIZER LOGIC ---
+        const splitter = document.getElementById('main-splitter');
+        const container = document.getElementById('main-container');
+        let isDragging = false;
+
+        splitter.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            splitter.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            // Disable text selection while dragging
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const containerWidth = container.offsetWidth;
+            const mouseX = e.clientX;
+            
+            // Calculate new percentage for the first column (Editor)
+            // We keep the splitter at 6px and adjust the sidebar width
+            const sidebarWidth = containerWidth - mouseX;
+            if (sidebarWidth > 200 && sidebarWidth < 800) {
+                container.style.gridTemplateColumns = `1fr 6px ${sidebarWidth}px`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                splitter.classList.remove('dragging');
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+            }
+        });
+        // --- VERTICAL RESIZER LOGIC ---
+        document.querySelectorAll('.resizer-v').forEach(vSplitter => {
+            let isDraggingV = false;
+            vSplitter.addEventListener('mousedown', (e) => {
+                isDraggingV = true;
+                vSplitter.classList.add('dragging');
+                document.body.style.cursor = 'row-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDraggingV) return;
+                const prevSection = vSplitter.previousElementSibling;
+                const nextSection = vSplitter.nextElementSibling;
+                
+                if (prevSection && nextSection) {
+                    const rect = prevSection.getBoundingClientRect();
+                    const newHeight = e.clientY - rect.top;
+                    if (newHeight > 50 && newHeight < 600) {
+                        prevSection.style.height = `${newHeight}px`;
+                        prevSection.style.flex = "none"; // Stop flex from fighting the height
+                    }
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDraggingV) {
+                    isDraggingV = false;
+                    vSplitter.classList.remove('dragging');
+                    document.body.style.cursor = 'default';
+                    document.body.style.userSelect = 'auto';
+                }
+            });
+        });
     </script>
 </body>
 </html>
