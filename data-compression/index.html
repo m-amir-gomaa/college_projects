@@ -282,15 +282,16 @@
         <div id="main-splitter"></div>
 
         <aside class="sidebar">
-            <div class="sidebar-section collapsed" style="height: 120px;">
+            <div class="sidebar-section" style="height: 120px;">
+                <div class="stat-label">Entropy & Efficiency</div>
                 <div class="stat-group">
                     <div class="stat-card" style="display: flex; flex-direction: column; justify-content: center;">
-                        <div class="stat-label collapsed">Entropy (H)</div>
+                        <div class="stat-label" style="display:none">Entropy (H)</div>
                         <div id="entropy-val" class="stat-value" style="color: var(--accent);">0.00</div>
                         <div class="stat-sub">bits / symbol</div>
                     </div>
                     <div class="stat-card" style="display: flex; flex-direction: column; justify-content: center;">
-                        <div class="stat-label collapsed">Efficiency</div>
+                        <div class="stat-label" style="display:none">Efficiency</div>
                         <div id="bits-per-sym" class="stat-value" style="color: var(--success);">0.00</div>
                         <div class="stat-sub">bits / sym</div>
                     </div>
@@ -299,9 +300,9 @@
 
             <div class="resizer-v"></div>
 
-            <div class="sidebar-section collapsed" style="height: 160px;">
+            <div class="sidebar-section" style="height: 160px;">
+                <div class="stat-label">Pipeline Metrics</div>
                 <div class="stat-card">
-                    <div class="stat-label collapsed">Pipeline Metrics</div>
                     <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
                         <div style="display: flex; justify-content: space-between;">
                             <span style="color: var(--text-dim);">Original:</span> <span id="size-orig">0</span>
